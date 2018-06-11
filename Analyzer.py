@@ -1,5 +1,4 @@
 import json
-import re
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -11,12 +10,35 @@ json_addr = "H:\\human recorder raw\\05210101.json"
 # plot settings
 # devide by ','.
 # M/F/B: male, female, both; H/J0-J24: head, joint number; Ro/Pi/Ya/X/Y/Z: roll, pitch, yaw, x, y, z;
-plot_attr = "F,H,Ya"
+plot_pattern = "F,HJ3,Ya"
 
 
 # plot
 def plot(humans, joints, dimensions):
-    pass
+    if len(humans) * len(joints) * len(dimensions) == 0:
+        raise IndexError('empty plot parameter.')
+    # get data
+    for human in humans:
+        for joint in joints:
+            for dimension in dimensions:
+                if joint == 'H':
+                    if dimension in ['x', 'y', 'z']:
+                        continue
+                    plot_data = human.__getattribute__(dimension)
+                    # plot
+                    data = np.array(plot_data)
+                    plt.title(f'{human.trackingId}, {human.gender}, {joint}, {dimension}')
+                    plt.plot(data, 'o')
+                    plt.show()
+                else:
+                    dim_order = ['x', 'y', 'z', 'roll', 'pitch', 'yaw']
+                    plot_data = human.__getattribute__('joint_' + str(joint))
+                    plot_data = [plot_data[i][dim_order.index(dimension)] for i in range(len(plot_data))]
+                    # plot
+                    data = np.array(plot_data)
+                    plt.title(f'{human.trackingId}, {human.gender}, {joint}, {dimension}')
+                    plt.plot(data, 'o')
+                    plt.show()
 
 
 # class to store data per human
@@ -56,19 +78,27 @@ class Human:
         self.joint_24 = []
 
 
-def pick_human(humans, trackingId):
+def pick_human(humans, attr, value):
     for human in humans:
-        if trackingId == human.trackingId:
+        if value == human.__getattribute__(attr):
             return human
     # return untracked human if no matches
     return humans[0]
 
 
 def main():
+    # 0. who am I
+
+    file_name = json_addr.split('\\')[-1][:-5]
+    print('experiment date: 2018.' + file_name[0:2] + '.' + file_name[2:4])
+    print('experiment shift: ' + file_name[4:6])
+    print('experiment session: ' + file_name[6:8])
+
     # 1. load
 
     # separate each object
     # decode error: only one json object each file. one pair of {}.
+    print('loading file...')
     json_objects = []
     # r: read only, w: write only!!! DO NOT use w!!!
     with open(json_addr, 'r') as f:
@@ -131,7 +161,7 @@ def main():
                 humans.append(Human(trackingId))
                 print(f'created human with id: {trackingId}')
 
-            human = pick_human(humans, trackingId)
+            human = pick_human(humans, 'trackingId', trackingId)
 
             # head orientation: pitch yaw roll
             pitch, yaw, roll = (0.0, 0.0, 0.0)  # when no data
@@ -171,7 +201,47 @@ def main():
     # 4. plot
 
     # head dir
-    plot_re = re.compile(plot_attr)
+    plot_re = plot_pattern.split(',')
+    if len(plot_re) != 3:
+        raise IndexError('wrong pattern for plotting.')
+    # pick subject
+    plot_subjects = []
+    if plot_re[0] == 'F':
+        plot_subjects.append(pick_human(humans, 'gender', 'female'))
+    elif plot_re[0] == 'M':
+        plot_subjects.append(pick_human(humans, 'gender', 'male'))
+    elif plot_re[0] == 'B':
+        plot_subjects.append(pick_human(humans, 'gender', 'female'))
+        plot_subjects.append(pick_human(humans, 'gender', 'male'))
+    else:
+        raise ValueError('wrong pattern of subject picking.')
+    # pick joints
+    plot_joints = []
+    if 'H' in plot_re[1]:
+        plot_joints.append('H')
+        plot_joints.remove('H')
+    joints = plot_re[1].split('J')
+    print(joints)
+    for joint in joints:
+        if len(joint) != 0:
+            plot_joints.append(joint)
+    # pick dimensions
+    plot_dims = []
+    if 'Ro' in plot_re[2]:
+        plot_dims.append('roll')
+    if 'Pi' in plot_re[2]:
+        plot_dims.append('pitch')
+    if 'Ya' in plot_re[2]:
+        plot_dims.append('yaw')
+    if 'X' in plot_re[2]:
+        plot_dims.append('x')
+    # Ya has Y!
+    if 'Ya' not in plot_re[2] and 'Y' in plot_re[2]:
+        plot_dims.append('y')
+    if 'Z' in plot_re[2]:
+        plot_dims.append('z')
+    # plot
+    plot(plot_subjects, plot_joints, plot_dims)
 
 
 if __name__ == '__main__':
