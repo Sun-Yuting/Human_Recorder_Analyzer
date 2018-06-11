@@ -1,16 +1,29 @@
 import json
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 # variables
+
+# file location
 json_addr = "H:\\human recorder raw\\05210101.json"
+# plot settings
+# devide by ','.
+# M/F/B: male, female, both; H/J0-J24: head, joint number; Ro/Pi/Ya/X/Y/Z: roll, pitch, yaw, x, y, z;
+plot_attr = "F,H,Ya"
+
+
+# plot
+def plot(humans, joints, dimensions):
+    pass
 
 
 # class to store data per human
 class Human:
     def __init__(self, trackingId):
         self.trackingId = trackingId
+        self.gender = 'not assigned'
         # head dir
         self.roll = []
         self.pitch = []
@@ -98,6 +111,7 @@ def main():
     del json_rawdata[0]
 
     # traverse through each frame
+    # TODO fill the other one if body count = 1
     id_list = []
     humans = [Human(0)]
     for frame in json_rawdata:
@@ -115,11 +129,12 @@ def main():
             if trackingId not in id_list:
                 id_list.append(trackingId)
                 humans.append(Human(trackingId))
+                print(f'created human with id: {trackingId}')
 
             human = pick_human(humans, trackingId)
 
             # head orientation: pitch yaw roll
-            pitch, yaw, roll = (-180.0, -180.0, -180.0)  # when no data
+            pitch, yaw, roll = (0.0, 0.0, 0.0)  # when no data
             if 'head dir' in frame['people'][n]:
                 pitch, yaw, roll = (float(degree) for degree in frame['people'][n]['head dir'].split(','))
             human.pitch.append(pitch)
@@ -134,7 +149,29 @@ def main():
                 value_list = human.__getattribute__('joint_' + str(joint))
                 value_list.append(joint_value)
 
-    # 3. analyse
+    # 3. gender
+
+    # use average position of head joint.
+    # get most longest two human instances, suggest they are valid subjects.
+    if len(humans) < 2:
+        raise IndexError('less than 2 humans.')
+    humans.sort(key=lambda x: len(x.joint_3), reverse=True)
+    person1 = humans[0]
+    person2 = humans[1]
+    # get horizontal coordinates of head joint
+    person1_data = [person1.joint_3[i][1] for i in range(len(person1.joint_3))]
+    person2_data = [person2.joint_3[i][1] for i in range(len(person2.joint_3))]
+    if sum(person1_data) / len(person1_data) < sum(person2_data) / len(person2_data):
+        person1.gender = 'female'
+        person2.gender = 'male'
+    else:
+        person1.gender = 'male'
+        person2.gender = 'female'
+
+    # 4. plot
+
+    # head dir
+    plot_re = re.compile(plot_attr)
 
 
 if __name__ == '__main__':
